@@ -29,18 +29,25 @@
             width: 90%;
         }
 
-        h1 {
+        .header {
             text-align: center;
+            margin-bottom: 40px;
+        }
+
+        h1 {
             color: #333;
             margin-bottom: 10px;
             font-size: 28px;
         }
 
         .subtitle {
-            text-align: center;
             color: #666;
-            margin-bottom: 40px;
             font-size: 14px;
+        }
+
+        .logo {
+            font-size: 50px;
+            margin-bottom: 20px;
         }
 
         .login-options {
@@ -92,24 +99,54 @@
 
         .footer {
             text-align: center;
-            margin-top: 20px;
+            margin-top: 30px;
             color: #999;
             font-size: 12px;
+        }
+
+        .error {
+            background: #fee;
+            color: #c00;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: none;
+            text-align: center;
+        }
+
+        .error.show {
+            display: block;
+        }
+
+        .firebase-badge {
+            background: #FFA500;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            display: inline-block;
+            margin-bottom: 15px;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🚀 اختبر التجربة</h1>
-        <p class="subtitle">تسجيل دخول سريع وآمن</p>
+        <div class="header">
+            <div class="logo">🚀</div>
+            <h1>اختبر التجربة</h1>
+            <p class="subtitle">تسجيل دخول سريع وآمن</p>
+            <div class="firebase-badge">🔥 مدعوم بـ Firebase</div>
+        </div>
+
+        <div id="error" class="error"></div>
 
         <div class="login-options">
-            <a href="http://localhost:5000/api/auth/google" class="btn btn-google">
+            <a href="/api/auth/google" class="btn btn-google">
                 <span class="icon">🔵</span>
                 تسجيل الدخول عن طريق Google
             </a>
 
-            <a href="http://localhost:5000/api/auth/apple" class="btn btn-apple">
+            <a href="/api/auth/apple" class="btn btn-apple">
                 <span class="icon">🍎</span>
                 تسجيل الدخول عن طريق Apple
             </a>
@@ -118,7 +155,23 @@
         <div class="footer">
             <p>✨ منصة آمنة وموثوقة</p>
             <p>© 2024 Free Work Platform</p>
+            <p>البيانات مخزنة بأمان على Firebase ☁️</p>
         </div>
     </div>
+
+    <script>
+        // عرض رسائل الخطأ من URL
+        const params = new URLSearchParams(window.location.search);
+        const error = params.get('error');
+        if (error) {
+            const errorDiv = document.getElementById('error');
+            errorDiv.classList.add('show');
+            if (error === 'auth_failed') {
+                errorDiv.textContent = '❌ فشل التحقق. حاول مرة أخرى';
+            } else if (error === 'processing_failed') {
+                errorDiv.textContent = '❌ حدث خطأ أثناء المعالجة';
+            }
+        }
+    </script>
 </body>
 </html>

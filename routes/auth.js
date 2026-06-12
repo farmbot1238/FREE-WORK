@@ -1,7 +1,7 @@
 const express = require('express');
 const passport = require('passport');
 const jwt = require('jsonwebtoken');
-const db = require('../config/database');
+const { db } = require('../config/firebase');
 require('../config/passport');
 
 const router = express.Router();
@@ -12,17 +12,39 @@ router.get('/google',
 );
 
 router.get('/google/callback',
-  passport.authenticate('google', { failureRedirect: '/login' }),
+  passport.authenticate('google', { failureRedirect: '/?error=auth_failed' }),
   (req, res) => {
-    // إنشاء JWT Token
-    const token = jwt.sign(
-      { userId: req.user.id, email: req.user.email },
-      process.env.JWT_SECRET,
-      { expiresIn: '24h' }
-    );
+    try {
+      // إنشاء JWT Token
+      const token = jwt.sign(
+        { 
+          email: req.user.email, 
+          name: req.user.name,
+          loginMethod: 'google'
+        },
+        process.env.JWT_SECRET,
+        { expiresIn: '7d' }
+      );
 
-    // إعادة التوجيه إلى صفحة النجاح
-    res.redirect(`http://localhost:3000/success.html?token=${token}&user=${encodeURIComponent(JSON.stringify(req.user))}`);
+      // حفظ التوكن في قاعدة البيانات
+      db.collection('users').doc(req.user.email).update({
+        lastToken: token,
+        lastTokenExpires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+      }).catch(err => console.error('Error saving token:', err));
+
+      // إعادة التوجيه إلى صفحة النجاح
+      const userData = encodeURIComponent(JSON.stringify({
+        email: req.user.email,
+        name: req.user.name,
+        loginMethod: 'google',
+        profilePicture: req.user.profilePicture
+      }));
+
+      res.redirect(`http://localhost:3000/success.html?token=${token}&user=${userData}`);
+    } catch (error) {
+      console.error('❌ Error in Google callback:', error);
+      res.redirect('/?error=processing_failed');
+    }
   }
 );
 
@@ -31,31 +53,65 @@ router.get('/apple',
   passport.authenticate('apple')
 );
 
-router.get('/apple/callback',
-  passport.authenticate('apple', { failureRedirect: '/login' }),
+router.post('/apple/callback',
+  passport.authenticate('apple', { failureRedirect: '/?error=auth_failed' }),
   (req, res) => {
-    // إنشاء JWT Token
-    const token = jwt.sign(
-      { userId: req.user.id, email: req.user.email },
-      process.env.JWT_SECRET,
-      { expiresIn: '24h' }
-    );
+    try {
+      // إنشاء JWT Token
+      const token = jwt.sign(
+        { 
+          email: req.user.email, 
+          name: req.user.name,
+          loginMethod: 'apple'
+        },
+        process.env.JWT_SECRET,
+        { expiresIn: '7d' }
+      );
 
-    // إعادة التوجيه إلى صفحة النجاح
-    res.redirect(`http://localhost:3000/success.html?token=${token}&user=${encodeURIComponent(JSON.stringify(req.user))}`);
+      // حفظ التوكن في قاعدة البيانات
+      db.collection('users').doc(req.user.email).update({
+        lastToken: token,
+        lastTokenExpires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+      }).catch(err => console.error('Error saving token:', err));
+
+      // إعادة التوجيه إلى صفحة النجاح
+      const userData = encodeURIComponent(JSON.stringify({
+        email: req.user.email,
+        name: req.user.name,
+        loginMethod: 'apple'
+      }));
+
+      res.redirect(`http://localhost:3000/success.html?token=${token}&user=${userData}`);
+    } catch (error) {
+      console.error('❌ Error in Apple callback:', error);
+      res.redirect('/?error=processing_failed');
+    }
   }
 );
 
 // الحصول على بيانات المستخدم الحالي
-router.get('/profile', (req, res) => {
+router.get('/profile', async (req, res) => {
   if (!req.isAuthenticated()) {
-    return res.status(401).json({ error: 'غير مصرح' });
+    return res.status(401).json({ error: 'غير مصرح', message: 'يجب تسجيل الدخول أولاً' });
   }
 
-  res.json({
-    success: true,
-    user: req.user
-  });
+  try {
+    const userDoc = await db.collection('users').doc(req.user.email).get();
+    if (userDoc.exists) {
+      res.json({
+        success: true,
+        user: {
+          email: req.user.email,
+          ...userDoc.data()
+        }
+      });
+    } else {
+      res.status(404).json({ error: 'المستخدم غير موجود' });
+    }
+  } catch (error) {
+    console.error('❌ Error fetching profile:', error);
+    res.status(500).json({ error: 'خطأ في جلب البيانات' });
+  }
 });
 
 // تسجيل الخروج
@@ -80,7 +136,7 @@ router.post('/verify-token', (req, res) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     res.json({ success: true, user: decoded });
   } catch (error) {
-    res.status(401).json({ error: 'توكن غير صالح' });
+    res.status(401).json({ error: 'توكن غير صالح أو منتهي الصلاحية' });
   }
 });
 

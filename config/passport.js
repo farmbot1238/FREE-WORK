@@ -1,7 +1,7 @@
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const AppleStrategy = require('passport-apple').Strategy;
-const db = require('./database');
+const { db, auth } = require('./firebase');
 require('dotenv').config();
 
 // استراتيجية Google
@@ -9,29 +9,39 @@ passport.use(new GoogleStrategy(
   {
     clientID: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL: '/api/auth/google/callback'
+    callbackURL: process.env.GOOGLE_CALLBACK_URL || '/api/auth/google/callback'
   },
   async (accessToken, refreshToken, profile, done) => {
     try {
-      // البحث عن المستخدم
-      const result = await db.query(
-        'SELECT * FROM users WHERE google_id = $1',
-        [profile.id]
-      );
+      const email = profile.emails[0].value;
+      const userDoc = await db.collection('users').doc(email).get();
+      
+      let user = {
+        email,
+        name: profile.displayName,
+        googleId: profile.id,
+        profilePicture: profile.photos[0]?.value || null,
+        loginMethod: 'google',
+        lastLogin: new Date()
+      };
 
-      let user = result.rows[0];
-
-      if (!user) {
+      if (!userDoc.exists) {
         // إنشاء مستخدم جديد
-        const insertResult = await db.query(
-          'INSERT INTO users (email, name, google_id, profile_picture) VALUES ($1, $2, $3, $4) RETURNING *',
-          [profile.emails[0].value, profile.displayName, profile.id, profile.photos[0]?.value || null]
-        );
-        user = insertResult.rows[0];
+        await db.collection('users').doc(email).set({
+          ...user,
+          createdAt: new Date()
+        });
+        console.log(`✨ مستخدم جديد تم إنشاؤه: ${email}`);
+      } else {
+        // تحديث آخر تسجيل دخول
+        await db.collection('users').doc(email).update({
+          lastLogin: new Date()
+        });
       }
 
-      return done(null, user);
+      return done(null, { email, ...user });
     } catch (error) {
+      console.error('❌ Google authentication error:', error);
       return done(error);
     }
   }
@@ -44,27 +54,38 @@ passport.use(new AppleStrategy(
     teamID: process.env.APPLE_TEAM_ID,
     keyID: process.env.APPLE_KEY_ID,
     key: process.env.APPLE_CLIENT_SECRET,
-    callbackURL: '/api/auth/apple/callback'
+    callbackURL: process.env.APPLE_CALLBACK_URL || '/api/auth/apple/callback'
   },
   async (accessToken, refreshToken, decodedIdToken, profile, done) => {
     try {
-      const result = await db.query(
-        'SELECT * FROM users WHERE apple_id = $1',
-        [decodedIdToken.sub]
-      );
+      const email = decodedIdToken.email;
+      const userDoc = await db.collection('users').doc(email).get();
+      
+      let user = {
+        email,
+        name: profile.name?.firstName + ' ' + (profile.name?.lastName || '') || 'Apple User',
+        appleId: decodedIdToken.sub,
+        loginMethod: 'apple',
+        lastLogin: new Date()
+      };
 
-      let user = result.rows[0];
-
-      if (!user) {
-        const insertResult = await db.query(
-          'INSERT INTO users (email, name, apple_id) VALUES ($1, $2, $3) RETURNING *',
-          [decodedIdToken.email, profile.displayName || 'Apple User', decodedIdToken.sub]
-        );
-        user = insertResult.rows[0];
+      if (!userDoc.exists) {
+        // إنشاء مستخدم جديد
+        await db.collection('users').doc(email).set({
+          ...user,
+          createdAt: new Date()
+        });
+        console.log(`✨ مستخدم جديد تم إنشاؤه: ${email}`);
+      } else {
+        // تحديث آخر تسجيل دخول
+        await db.collection('users').doc(email).update({
+          lastLogin: new Date()
+        });
       }
 
-      return done(null, user);
+      return done(null, { email, ...user });
     } catch (error) {
+      console.error('❌ Apple authentication error:', error);
       return done(error);
     }
   }
@@ -72,14 +93,18 @@ passport.use(new AppleStrategy(
 
 // حفظ المستخدم في الجلسة
 passport.serializeUser((user, done) => {
-  done(null, user.id);
+  done(null, user.email);
 });
 
 // استرجاع المستخدم من الجلسة
-passport.deserializeUser(async (id, done) => {
+passport.deserializeUser(async (email, done) => {
   try {
-    const result = await db.query('SELECT * FROM users WHERE id = $1', [id]);
-    done(null, result.rows[0]);
+    const userDoc = await db.collection('users').doc(email).get();
+    if (userDoc.exists) {
+      done(null, { email, ...userDoc.data() });
+    } else {
+      done(null, null);
+    }
   } catch (error) {
     done(error);
   }

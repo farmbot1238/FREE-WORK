@@ -18,6 +18,7 @@
             display: flex;
             justify-content: center;
             align-items: center;
+            padding: 20px;
         }
 
         .container {
@@ -26,14 +27,14 @@
             box-shadow: 0 15px 50px rgba(0, 0, 0, 0.3);
             padding: 50px;
             max-width: 600px;
-            width: 90%;
+            width: 100%;
             text-align: center;
         }
 
         .success-icon {
             font-size: 80px;
             margin-bottom: 20px;
-            animation: bounce 1s ease-in-out;
+            animation: bounce 1s ease-in-out infinite;
         }
 
         @keyframes bounce {
@@ -64,12 +65,12 @@
         .user-info h2 {
             color: #667eea;
             font-size: 16px;
-            margin-bottom: 10px;
+            margin-bottom: 15px;
         }
 
         .info-item {
             color: #666;
-            padding: 8px 0;
+            padding: 12px 0;
             border-bottom: 1px solid #ddd;
         }
 
@@ -80,12 +81,14 @@
         .info-label {
             color: #999;
             font-size: 12px;
+            display: block;
         }
 
         .info-value {
             color: #333;
             font-weight: 600;
-            margin-top: 3px;
+            margin-top: 5px;
+            word-break: break-all;
         }
 
         .btn-group {
@@ -93,6 +96,7 @@
             gap: 10px;
             justify-content: center;
             flex-wrap: wrap;
+            margin-top: 30px;
         }
 
         .btn {
@@ -143,12 +147,6 @@
             100% { transform: rotate(360deg); }
         }
 
-        .error {
-            color: #e74c3c;
-            display: none;
-            margin-bottom: 20px;
-        }
-
         .success-badge {
             display: inline-block;
             background: #2ecc71;
@@ -158,31 +156,39 @@
             font-size: 14px;
             margin-bottom: 20px;
         }
+
+        .firebase-info {
+            background: #FFF3E0;
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 12px;
+            color: #E65100;
+            margin-bottom: 20px;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="success-icon">🎉</div>
         <div class="success-badge">✅ تم التجربة بنجاح</div>
+        <div class="firebase-info">🔥 البيانات محفوظة آمنة على Firebase</div>
 
         <h1>مرحباً بك!</h1>
         <p class="message">تم تسجيل دخولك بنجاح إلى منصة Free Work</p>
 
-        <div id="error" class="error"></div>
-
         <div id="userInfo" class="user-info" style="display: none;">
             <h2>📋 بيانات المستخدم</h2>
             <div class="info-item">
-                <div class="info-label">البريد الإلكتروني:</div>
+                <span class="info-label">البريد الإلكتروني:</span>
                 <div class="info-value" id="userEmail">جاري التحميل...</div>
             </div>
             <div class="info-item">
-                <div class="info-label">الاسم:</div>
+                <span class="info-label">الاسم:</span>
                 <div class="info-value" id="userName">جاري التحميل...</div>
             </div>
             <div class="info-item">
-                <div class="info-label">المعرف:</div>
-                <div class="info-value" id="userId">جاري التحميل...</div>
+                <span class="info-label">طريقة التسجيل:</span>
+                <div class="info-value" id="userMethod">جاري التحميل...</div>
             </div>
         </div>
 
@@ -211,7 +217,8 @@
                     document.getElementById('loading').style.display = 'none';
                     document.getElementById('userInfo').style.display = 'block';
                 } catch (e) {
-                    console.error('خطأ في تحليل بيانات المستخدم:', e);
+                    console.error('خطأ في تحليل البيانات:', e);
+                    document.getElementById('loading').innerHTML = '❌ حدث خطأ في تحميل البيانات';
                 }
             }
 
@@ -225,7 +232,8 @@
         function displayUserInfo(user) {
             document.getElementById('userEmail').textContent = user.email || 'غير متوفر';
             document.getElementById('userName').textContent = user.name || 'مستخدم';
-            document.getElementById('userId').textContent = user.id || 'غير متوفر';
+            const method = user.loginMethod === 'google' ? '🔵 Google' : '🍎 Apple';
+            document.getElementById('userMethod').textContent = method;
         }
 
         // الذهاب للرئيسية
@@ -235,14 +243,14 @@
 
         // تسجيل الخروج
         function logout() {
-            fetch('http://localhost:5000/api/auth/logout')
+            fetch('/api/auth/logout')
                 .then(res => res.json())
                 .then(data => {
                     localStorage.removeItem('authToken');
                     window.location.href = '/';
                 })
                 .catch(err => {
-                    console.error('خطأ في تسجيل الخروج:', err);
+                    console.error('خطأ:', err);
                     alert('حدث خطأ في تسجيل الخروج');
                 });
         }
